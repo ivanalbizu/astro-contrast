@@ -1,0 +1,6 @@
+@import './auto-circular-b.css';
+
+.box-a {
+  color: #000000;
+  background-color: #ffffff;
+}

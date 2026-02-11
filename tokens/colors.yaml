@@ -1,0 +1,21 @@
+color:
+  $type: color
+  primitives:
+    blue:
+      "500":
+        $value: "#1a5276"
+      "100":
+        $value: "#d4e6f1"
+    green:
+      "500":
+        $value: "#27ae60"
+    red:
+      "500":
+        $value: "#e74c3c"
+      "100":
+        $value: "#fadbd8"
+  semantic:
+    primary:
+      $value: "{color.primitives.blue.500}"
+    danger:
+      $value: "{color.primitives.red.500}"

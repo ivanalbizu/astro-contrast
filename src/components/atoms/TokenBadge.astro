@@ -1,0 +1,25 @@
+---
+
+---
+
+<span class="token-badge token-badge--primary">Primary</span>
+<span class="token-badge token-badge--danger">Danger</span>
+
+<style>
+  .token-badge {
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .token-badge--primary {
+    /* uses tokens from tokens/colors.json */
+    color: var(--color-primitives-blue-100);
+    background-color: var(--color-semantic-primary);
+  }
+  .token-badge--danger {
+    /* low contrast on purpose — white on light red */
+    color: #ffffff;
+    background-color: var(--color-primitives-red-100);
+  }
+</style>

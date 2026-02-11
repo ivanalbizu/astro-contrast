@@ -1,0 +1,1 @@
+{"primitives":{"$type":"color","blue500":{"$value":"#3498db"}},"semantic":{"$type":"color","info":{"$value":"{primitives.blue500}"}},"component":{"$type":"color","banner":{"$value":"{semantic.info}"}}}

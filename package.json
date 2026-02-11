@@ -1,0 +1,26 @@
+{
+  "name": "astro-contrast-workspace",
+  "private": true,
+  "type": "module",
+  "version": "0.0.1",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "contrast": "node packages/astro-contrast/bin/cli.mjs \"src/**/*.astro\" --verbose",
+    "contrast:tokens": "node packages/astro-contrast/bin/cli.mjs \"src/**/*.astro\" --tokens tokens/colors.json --verbose",
+    "test": "npm run test --workspace=packages/astro-contrast",
+    "test:watch": "npm run test:watch --workspace=packages/astro-contrast",
+    "build:pkg": "npm run build --workspace=packages/astro-contrast",
+    "typecheck": "npm run typecheck --workspace=packages/astro-contrast",
+    "pack": "npm run pack --workspace=packages/astro-contrast"
+  },
+  "dependencies": {
+    "astro": "^5.17.1",
+    "sass": "^1.97.3"
+  }
+}

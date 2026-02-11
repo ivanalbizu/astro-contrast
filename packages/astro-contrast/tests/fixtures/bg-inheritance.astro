@@ -1,0 +1,32 @@
+---
+---
+<div>
+  <section style="background-color: #1a1a2e;">
+    <h1 style="color: #ffffff;">Inherited bg from section</h1>
+    <p style="color: #cccccc;">Low contrast on dark bg</p>
+  </section>
+
+  <article style="background: red;">
+    <p style="color: red;">Same color as bg - worst contrast</p>
+  </article>
+
+  <div class="dark-box">
+    <span style="color: #ffffff;">Text in dark box</span>
+  </div>
+
+  <div class="page">
+    <h2 class="red-text">Red on red via CSS rules</h2>
+  </div>
+</div>
+
+<style>
+  .dark-box {
+    background-color: #222222;
+  }
+  .page {
+    background-color: red;
+  }
+  .red-text {
+    color: red;
+  }
+</style>

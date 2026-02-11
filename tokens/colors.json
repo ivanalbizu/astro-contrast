@@ -1,0 +1,30 @@
+{
+  "color": {
+    "$type": "color",
+    "primitives": {
+      "blue": {
+        "500": { "$value": "#1a5276" },
+        "100": { "$value": "#d4e6f1" }
+      },
+      "green": {
+        "500": { "$value": "#27ae60" },
+        "100": { "$value": "#d5f5e3" }
+      },
+      "red": {
+        "500": { "$value": "#e74c3c" },
+        "100": { "$value": "#fadbd8" }
+      },
+      "gray": {
+        "100": { "$value": "#f8f9fa" },
+        "800": { "$value": "#2d3436" }
+      }
+    },
+    "semantic": {
+      "primary": { "$value": "{color.primitives.blue.500}" },
+      "success": { "$value": "{color.primitives.green.500}" },
+      "danger": { "$value": "{color.primitives.red.500}" },
+      "text": { "$value": "{color.primitives.gray.800}" },
+      "surface": { "$value": "{color.primitives.gray.100}" }
+    }
+  }
+}

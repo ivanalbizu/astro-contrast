@@ -1,0 +1,9 @@
+:root {
+  --color-primary: #1a5276;
+  --color-surface: #f8f9fa;
+}
+
+.global-heading {
+  color: var(--color-primary);
+  background-color: var(--color-surface);
+}

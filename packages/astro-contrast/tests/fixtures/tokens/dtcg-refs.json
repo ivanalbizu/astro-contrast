@@ -1,0 +1,1 @@
+{"color":{"$type":"color","blue":{"500":{"$value":"#3498db"}}},"semantic":{"$type":"color","primary":{"$value":"{color.blue.500}"}}}

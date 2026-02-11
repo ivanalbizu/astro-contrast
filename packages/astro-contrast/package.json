@@ -1,0 +1,80 @@
+{
+  "name": "astro-contrast",
+  "version": "0.1.0",
+  "description": "WCAG color contrast analyzer for Astro components",
+  "license": "MIT",
+  "author": "ivanalbizu",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ivanalbizu/astro-contrast.git",
+    "directory": "packages/astro-contrast"
+  },
+  "homepage": "https://github.com/ivanalbizu/astro-contrast#readme",
+  "bugs": {
+    "url": "https://github.com/ivanalbizu/astro-contrast/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "astro-contrast": "./bin/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./integration": {
+      "types": "./dist/integration.d.ts",
+      "import": "./dist/integration.js"
+    }
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "astro-integration",
+    "withastro",
+    "astro-component",
+    "wcag",
+    "accessibility",
+    "a11y",
+    "contrast",
+    "color-contrast"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build",
+    "pack": "npm run build && npm pack"
+  },
+  "dependencies": {
+    "@astrojs/compiler": "^2.13.0",
+    "chokidar": "^4.0.0",
+    "fast-glob": "^3.3.0",
+    "picocolors": "^1.1.0",
+    "postcss": "^8.4.0",
+    "postcss-value-parser": "^4.2.0",
+    "yaml": "^2.8.2"
+  },
+  "peerDependencies": {
+    "astro": "^4.0.0 || ^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "astro": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.1",
+    "tsup": "^8.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

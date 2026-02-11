@@ -1,0 +1,20 @@
+:root {
+  --external-primary: #1a5276;
+  --external-danger: #e74c3c;
+  --external-bg: #f8f9fa;
+}
+
+.external-text {
+  color: var(--external-primary);
+  background-color: #ffffff;
+}
+
+.external-badge {
+  color: #ffffff;
+  background-color: var(--external-danger);
+}
+
+.external-subtle {
+  color: #999999;
+  background-color: #ffffff;
+}

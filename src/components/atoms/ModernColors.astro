@@ -1,0 +1,27 @@
+---
+
+---
+
+<p class="oklch-pass">OKLCH high contrast</p>
+<p class="oklch-fail">OKLCH low contrast</p>
+<p class="lab-color">Lab color</p>
+<p class="lch-color">LCH color</p>
+
+<style>
+  .oklch-pass {
+    color: oklch(0.2 0 0);
+    background-color: oklch(0.95 0 0);
+  }
+  .oklch-fail {
+    color: oklch(0.7 0.05 180);
+    background-color: oklch(0.8 0.02 180);
+  }
+  .lab-color {
+    color: lab(20 0 0);
+    background-color: lab(95 0 0);
+  }
+  .lch-color {
+    color: lch(10 0 0);
+    background-color: lch(90 10 270);
+  }
+</style>

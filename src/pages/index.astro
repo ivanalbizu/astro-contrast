@@ -1,0 +1,24 @@
+---
+import Button from "../components/atoms/Button.astro";
+import Badge from "../components/atoms/Badge.astro";
+import TokenBadge from "../components/atoms/TokenBadge.astro";
+import Card from "../components/molecules/Card.astro";
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Astro</title>
+	</head>
+	<body>
+		<h1>Astro</h1>
+		<Button>Button</Button>
+		<Card title="Card Title" description="Card description goes here." />
+		<Badge>Badge</Badge>
+		<TokenBadge />
+	</body>
+</html>

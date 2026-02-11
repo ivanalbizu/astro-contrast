@@ -1,0 +1,25 @@
+---
+
+---
+
+<p class="external-text">Uses external CSS rule</p>
+<span class="external-badge">External badge</span>
+<p class="external-subtle">Low contrast from external</p>
+<p class="local-text">Uses local CSS</p>
+<p class="override-text">In-file overrides external</p>
+<p class="var-from-external">Uses external custom property</p>
+
+<style>
+  .local-text {
+    color: #333333;
+    background-color: #ffffff;
+  }
+  .override-text {
+    color: #000000;
+    background-color: #ffffff;
+  }
+  .var-from-external {
+    color: var(--external-primary);
+    background-color: var(--external-bg);
+  }
+</style>

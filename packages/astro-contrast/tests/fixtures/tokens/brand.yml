@@ -1,0 +1,5 @@
+
+brand:
+  $type: color
+  accent:
+    $value: "#ff6600"
