@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { join } from 'node:path';
 import { analyzeFile } from '../src/analyzer.js';
 import { parseIgnoreConfig, shouldIgnoreResult, applyIgnoreFilter } from '../src/matcher/ignore-filter.js';
 import type { ContrastResult, HtmlElementInfo, ColorInfo, RgbColor } from '../src/types/index.js';
@@ -220,7 +221,7 @@ describe('applyIgnoreFilter', () => {
 // ── Integration tests ────────────────────────────────────────────────
 
 describe('global ignore integration', () => {
-  const fixture = 'packages/astro-contrast/tests/fixtures/global-ignore.astro';
+  const fixture = join(import.meta.dirname, 'fixtures', 'global-ignore.astro');
 
   it('without ignore returns all 5 elements', async () => {
     const result = await analyzeFile(fixture);

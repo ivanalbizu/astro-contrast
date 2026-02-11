@@ -21,7 +21,7 @@ WCAG color contrast analyzer for Astro components. Checks your `.astro` files fo
 ## Install
 
 ```sh
-npm install astro-contrast
+npm install @ivanalbizu/astro-contrast
 ```
 
 ## Usage
@@ -79,11 +79,11 @@ astro-contrast "src/**/*.astro" --json
 
 ### Astro Integration
 
-Add `astro-contrast` to your `astro.config.mjs`:
+Add `@ivanalbizu/astro-contrast` to your `astro.config.mjs`:
 
 ```js
 import { defineConfig } from 'astro/config';
-import astroContrast from 'astro-contrast';
+import astroContrast from '@ivanalbizu/astro-contrast';
 
 export default defineConfig({
   integrations: [
@@ -135,7 +135,7 @@ A JSON API is also available at `{dashboardUrl}/api` for programmatic access.
 ### Programmatic API
 
 ```ts
-import { analyzeFile, analyzeFiles } from 'astro-contrast';
+import { analyzeFile, analyzeFiles } from '@ivanalbizu/astro-contrast';
 
 const result = await analyzeFile('src/components/Button.astro');
 
@@ -150,7 +150,7 @@ for (const cr of result.results) {
 With external tokens:
 
 ```ts
-import { analyzeFiles } from 'astro-contrast';
+import { analyzeFiles } from '@ivanalbizu/astro-contrast';
 import { readTokenFiles } from 'astro-contrast/dist/chunk-HPYGY3PW.js'; // internal
 
 const tokens = await readTokenFiles(['tokens/colors.json']);

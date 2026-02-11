@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { join } from 'node:path';
 import { analyzeFile } from '../src/analyzer.js';
 
 describe('alpha compositing integration', () => {
-  const fixture = 'packages/astro-contrast/tests/fixtures/alpha.astro';
+  const fixture = join(import.meta.dirname, 'fixtures', 'alpha.astro');
 
   it('rgba() foreground is composited onto background', async () => {
     const result = await analyzeFile(fixture);

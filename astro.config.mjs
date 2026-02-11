@@ -1,6 +1,6 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
-import astroContrast from 'astro-contrast';
+import astroContrast from '@ivanalbizu/astro-contrast';
 
 // https://astro.build/config
 export default defineConfig({

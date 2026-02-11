@@ -1,5 +1,8 @@
 {
-  "name": "astro-contrast",
+  "name": "@ivanalbizu/astro-contrast",
+  "publishConfig": {
+    "access": "public"
+  },
   "version": "0.1.0",
   "description": "WCAG color contrast analyzer for Astro components",
   "license": "MIT",
