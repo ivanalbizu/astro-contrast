@@ -22,7 +22,7 @@ WCAG color contrast analyzer for Astro components. Checks your `.astro` files fo
 ## Install
 
 ```sh
-npm install @ivanalbizu/astro-contrast
+npm install -D @ivanalbizu/astro-contrast
 ```
 
 ## Usage
