@@ -45,3 +45,50 @@ describe('alpha compositing integration', () => {
     expect(pair!.ratio).toBeCloseTo(21, 0);
   });
 });
+
+describe('background alpha compositing', () => {
+  const bgFixture = join(import.meta.dirname, 'fixtures', 'alpha-bg.astro');
+
+  it('rgba() background is composited onto white (default behind)', async () => {
+    const result = await analyzeFile(bgFixture);
+    // rgba(255,0,0,0.5) on white → composited to rgb(255,128,128) — light pink
+    const pair = result.results.find(r => r.background.original === 'rgba(255, 0, 0, 0.5)');
+    expect(pair).toBeTruthy();
+    // Black on pink should have good contrast but not as much as black on pure red
+    expect(pair!.ratio).toBeGreaterThan(3);
+    // The composited bg should be opaque (no alpha on final bg)
+    expect(pair!.background.rgb!.a).toBeUndefined();
+  });
+
+  it('hex8 background is composited', async () => {
+    const result = await analyzeFile(bgFixture);
+    const pair = result.results.find(r => r.background.original === '#ff000080');
+    expect(pair).toBeTruthy();
+    expect(pair!.background.rgb!.a).toBeUndefined();
+    expect(pair!.ratio).toBeGreaterThan(3);
+  });
+
+  it('hsla() background is composited', async () => {
+    const result = await analyzeFile(bgFixture);
+    const pair = result.results.find(r => r.background.original === 'hsla(0, 100%, 50%, 0.5)');
+    expect(pair).toBeTruthy();
+    expect(pair!.background.rgb!.a).toBeUndefined();
+  });
+
+  it('semi-transparent black bg on white gives gray', async () => {
+    const result = await analyzeFile(bgFixture);
+    // rgba(0,0,0,0.5) on white → composited bg = rgb(128,128,128)
+    const pair = result.results.find(r => r.background.original === 'rgba(0, 0, 0, 0.5)');
+    expect(pair).toBeTruthy();
+    // Black text on gray(128) → ~5.32:1
+    expect(pair!.ratio).toBeCloseTo(5.32, 1);
+  });
+
+  it('opaque background is unchanged', async () => {
+    const result = await analyzeFile(bgFixture);
+    const pair = result.results.find(r => r.background.original === 'rgb(255, 0, 0)');
+    expect(pair).toBeTruthy();
+    // Black on red → ~5.25:1
+    expect(pair!.ratio).toBeCloseTo(5.25, 0);
+  });
+});

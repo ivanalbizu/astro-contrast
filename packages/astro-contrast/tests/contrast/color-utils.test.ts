@@ -331,4 +331,79 @@ describe('parseColor', () => {
       expect(parseColor('  #ff0000  ')).toEqual({ r: 255, g: 0, b: 0 });
     });
   });
+
+  describe('color-mix()', () => {
+    it('mixes two colors 50/50 in srgb', () => {
+      // black + white → gray
+      const result = parseColor('color-mix(in srgb, #000000, #ffffff)');
+      expect(result).toEqual({ r: 128, g: 128, b: 128 });
+    });
+
+    it('mixes with explicit percentages', () => {
+      // 75% red + 25% blue
+      const result = parseColor('color-mix(in srgb, red 75%, blue 25%)');
+      expect(result).toEqual({ r: 191, g: 0, b: 64 });
+    });
+
+    it('infers missing percentage from the other', () => {
+      // 80% white → 20% black
+      const result = parseColor('color-mix(in srgb, #ffffff 80%, #000000)');
+      expect(result).toEqual({ r: 204, g: 204, b: 204 });
+    });
+
+    it('handles 98%/2% mix', () => {
+      // 98% white + 2% black
+      const result = parseColor('color-mix(in srgb, #ffffff 98%, #000000)');
+      expect(result).toEqual({ r: 250, g: 250, b: 250 });
+    });
+
+    it('handles named colors', () => {
+      const result = parseColor('color-mix(in srgb, white, black)');
+      expect(result).toEqual({ r: 128, g: 128, b: 128 });
+    });
+
+    it('handles rgb() colors inside', () => {
+      const result = parseColor('color-mix(in srgb, rgb(255, 0, 0) 50%, rgb(0, 0, 255) 50%)');
+      expect(result).toEqual({ r: 128, g: 0, b: 128 });
+    });
+
+    it('interpolates in oklch color space', () => {
+      const result = parseColor('color-mix(in oklch, red, blue)');
+      expect(result).not.toBeNull();
+      // oklch interpolation produces a different result than srgb
+      const srgbResult = parseColor('color-mix(in srgb, red, blue)');
+      expect(result).not.toEqual(srgbResult);
+    });
+
+    it('interpolates in oklab color space', () => {
+      const result = parseColor('color-mix(in oklab, red, blue)');
+      expect(result).not.toBeNull();
+    });
+
+    it('interpolates in hsl color space', () => {
+      const result = parseColor('color-mix(in hsl, red, blue)');
+      expect(result).not.toBeNull();
+    });
+
+    it('interpolates in lab color space', () => {
+      const result = parseColor('color-mix(in lab, white, black)');
+      expect(result).not.toBeNull();
+    });
+
+    it('interpolates in srgb-linear color space', () => {
+      const result = parseColor('color-mix(in srgb-linear, white, black)');
+      expect(result).not.toBeNull();
+      // srgb-linear midpoint is different from srgb midpoint
+      const srgbResult = parseColor('color-mix(in srgb, white, black)');
+      expect(result).not.toEqual(srgbResult);
+    });
+
+    it('returns null for unsupported color space', () => {
+      expect(parseColor('color-mix(in display-p3, red, blue)')).toBeNull();
+    });
+
+    it('returns null for unresolvable colors', () => {
+      expect(parseColor('color-mix(in srgb, var(--x), red)')).toBeNull();
+    });
+  });
 });

@@ -11,30 +11,28 @@ export function resolveCustomProperty(
   if (!value.includes('var(')) return value;
 
   const parsed = valueParser(value);
-  let resolved = '';
   let hasUnresolved = false;
 
+  // Replace var() nodes in-place, then stringify the full AST
   parsed.walk((node) => {
     if (node.type === 'function' && node.value === 'var') {
       const args = node.nodes.filter((n) => n.type !== 'div' && n.type !== 'space');
       const propName = args[0]?.value;
       const fallback = args.slice(1).map((n) => valueParser.stringify(n)).join('').trim();
 
+      let resolvedValue: string | null = null;
+
       if (propName && properties.has(propName)) {
-        const propValue = properties.get(propName)!;
-        const deepResolved = resolveCustomProperty(propValue, properties, depth + 1);
-        if (deepResolved !== null) {
-          resolved += deepResolved;
-        } else {
-          hasUnresolved = true;
-        }
+        resolvedValue = resolveCustomProperty(properties.get(propName)!, properties, depth + 1);
       } else if (fallback) {
-        const deepResolved = resolveCustomProperty(fallback, properties, depth + 1);
-        if (deepResolved !== null) {
-          resolved += deepResolved;
-        } else {
-          hasUnresolved = true;
-        }
+        resolvedValue = resolveCustomProperty(fallback, properties, depth + 1);
+      }
+
+      if (resolvedValue !== null) {
+        // Replace the var() function node with a simple word node
+        (node as unknown as valueParser.WordNode).type = 'word';
+        node.value = resolvedValue;
+        (node as unknown as { nodes: undefined }).nodes = undefined;
       } else {
         hasUnresolved = true;
       }
@@ -44,10 +42,7 @@ export function resolveCustomProperty(
 
   if (hasUnresolved) return null;
 
-  // If no var() was found in the walk, return original value
-  if (resolved === '') return value;
-
-  return resolved;
+  return valueParser.stringify(parsed.nodes);
 }
 
 export function resolveDeclarationValues(

@@ -44,4 +44,25 @@ describe('resolveCustomProperty', () => {
     const props = new Map([['--fallback', 'green']]);
     expect(resolveCustomProperty('var(--missing, var(--fallback))', props)).toBe('green');
   });
+
+  it('resolves var() inside color-mix()', () => {
+    const props = new Map([
+      ['--color-base', '#ffffff'],
+      ['--color-main', '#000000'],
+    ]);
+    const result = resolveCustomProperty(
+      'color-mix(in srgb, var(--color-base) 98%, var(--color-main))',
+      props,
+    );
+    expect(result).toBe('color-mix(in srgb, #ffffff 98%, #000000)');
+  });
+
+  it('returns null when var() inside color-mix() is unresolvable', () => {
+    const props = new Map();
+    const result = resolveCustomProperty(
+      'color-mix(in srgb, var(--missing) 50%, red)',
+      props,
+    );
+    expect(result).toBeNull();
+  });
 });

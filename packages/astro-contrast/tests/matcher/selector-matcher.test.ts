@@ -127,4 +127,135 @@ describe('buildColorPairs', () => {
     expect(pairs[0].foreground.original).toBe('#ffffff');
     expect(pairs[0].background.original).toBe('#1a5276');
   });
+
+  // ── Descendant combinator ───────────────────────────────────────
+
+  it('matches descendant combinator (.card .title)', () => {
+    const card = makeElement({ tagName: 'div', classes: ['card'], hasTextContent: false });
+    const title = makeElement({ tagName: 'p', classes: ['title'], parentElement: card });
+    const elements = [title];
+    const rules = [makeRule('.card .title', [{ property: 'color', value: '#111' }])];
+
+    const pairs = buildColorPairs(elements, rules);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].foreground.original).toBe('#111');
+  });
+
+  it('descendant combinator does NOT match without ancestor', () => {
+    const title = makeElement({ classes: ['title'] }); // no parentElement
+    const elements = [title];
+    const rules = [makeRule('.card .title', [{ property: 'color', value: '#111' }])];
+
+    const pairs = buildColorPairs(elements, rules);
+    expect(pairs).toHaveLength(0);
+  });
+
+  it('descendant combinator matches through intermediate ancestors', () => {
+    const section = makeElement({ tagName: 'section', classes: ['card'], hasTextContent: false });
+    const inner = makeElement({ tagName: 'div', classes: ['inner'], hasTextContent: false, parentElement: section });
+    const title = makeElement({ tagName: 'span', classes: ['title'], parentElement: inner });
+    const elements = [title];
+    const rules = [makeRule('.card .title', [{ property: 'color', value: '#222' }])];
+
+    const pairs = buildColorPairs(elements, rules);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].foreground.original).toBe('#222');
+  });
+
+  // ── Child combinator ────────────────────────────────────────────
+
+  it('matches child combinator (.card > .title)', () => {
+    const card = makeElement({ tagName: 'div', classes: ['card'], hasTextContent: false });
+    const title = makeElement({ tagName: 'p', classes: ['title'], parentElement: card });
+    const elements = [title];
+    const rules = [makeRule('.card > .title', [{ property: 'color', value: '#333' }])];
+
+    const pairs = buildColorPairs(elements, rules);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].foreground.original).toBe('#333');
+  });
+
+  it('child combinator does NOT match grandchild', () => {
+    const card = makeElement({ tagName: 'div', classes: ['card'], hasTextContent: false });
+    const inner = makeElement({ tagName: 'div', hasTextContent: false, parentElement: card });
+    const title = makeElement({ tagName: 'p', classes: ['title'], parentElement: inner });
+    const elements = [title];
+    const rules = [makeRule('.card > .title', [{ property: 'color', value: '#333' }])];
+
+    const pairs = buildColorPairs(elements, rules);
+    expect(pairs).toHaveLength(0);
+  });
+
+  // ── Specificity with combinators ────────────────────────────────
+
+  it('descendant selector has higher specificity than simple selector', () => {
+    const card = makeElement({ tagName: 'div', classes: ['card'], hasTextContent: false });
+    const title = makeElement({ tagName: 'p', classes: ['title'], parentElement: card });
+    const elements = [title];
+    const rules = [
+      makeRule('.title', [{ property: 'color', value: '#aaa' }]),         // specificity: 10
+      makeRule('.card .title', [{ property: 'color', value: '#bbb' }]),   // specificity: 20
+    ];
+
+    const pairs = buildColorPairs(elements, rules);
+    expect(pairs[0].foreground.original).toBe('#bbb');
+  });
+
+  // ── Pseudo-class stripping ──────────────────────────────────────
+
+  it('strips pseudo-classes and matches base element (.btn:hover)', () => {
+    const elements = [makeElement({ classes: ['btn'] })];
+    const rules = [makeRule('.btn:hover', [{ property: 'color', value: '#ff0000' }])];
+
+    const pairs = buildColorPairs(elements, rules);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].foreground.original).toBe('#ff0000');
+  });
+
+  it('strips pseudo-elements and matches base element (p::first-line)', () => {
+    const elements = [makeElement({ tagName: 'p' })];
+    const rules = [makeRule('p::first-line', [{ property: 'color', value: '#555' }])];
+
+    const pairs = buildColorPairs(elements, rules);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].foreground.original).toBe('#555');
+  });
+
+  it('handles combined combinator + pseudo-class (.card .link:focus)', () => {
+    const card = makeElement({ tagName: 'div', classes: ['card'], hasTextContent: false });
+    const link = makeElement({ tagName: 'a', classes: ['link'], parentElement: card });
+    const elements = [link];
+    const rules = [makeRule('.card .link:focus', [{ property: 'color', value: '#00f' }])];
+
+    const pairs = buildColorPairs(elements, rules);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].foreground.original).toBe('#00f');
+  });
+
+  // ── Multi-level selectors ───────────────────────────────────────
+
+  it('matches multi-level descendant (section .card .title)', () => {
+    const section = makeElement({ tagName: 'section', hasTextContent: false });
+    const card = makeElement({ tagName: 'div', classes: ['card'], hasTextContent: false, parentElement: section });
+    const title = makeElement({ tagName: 'span', classes: ['title'], parentElement: card });
+    const elements = [title];
+    const rules = [makeRule('section .card .title', [{ property: 'color', value: '#444' }])];
+
+    const pairs = buildColorPairs(elements, rules);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].foreground.original).toBe('#444');
+  });
+
+  it('matches mixed combinators (section > .card .title)', () => {
+    const section = makeElement({ tagName: 'section', hasTextContent: false });
+    const card = makeElement({ tagName: 'div', classes: ['card'], hasTextContent: false, parentElement: section });
+    const inner = makeElement({ tagName: 'div', hasTextContent: false, parentElement: card });
+    const title = makeElement({ tagName: 'p', classes: ['title'], parentElement: inner });
+    const elements = [title];
+    const rules = [makeRule('section > .card .title', [{ property: 'color', value: '#555' }])];
+
+    const pairs = buildColorPairs(elements, rules);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].foreground.original).toBe('#555');
+  });
 });

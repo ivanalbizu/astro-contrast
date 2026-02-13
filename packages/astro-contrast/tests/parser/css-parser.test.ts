@@ -87,4 +87,45 @@ describe('parseCssBlock', () => {
     const { rules } = parseCssBlock('this is not valid css {{{');
     expect(rules).toHaveLength(0);
   });
+
+  // ── SCSS nesting support ──────────────────────────────────────────
+
+  it('resolves nested selectors as descendant', () => {
+    const css = `.card { background: #fff; .title { color: #333; } }`;
+    const { rules } = parseCssBlock(css);
+
+    const cardRule = rules.find(r => r.selector === '.card');
+    const titleRule = rules.find(r => r.selector === '.card .title');
+    expect(cardRule).toBeDefined();
+    expect(cardRule!.declarations).toHaveLength(1);
+    expect(cardRule!.declarations[0].value).toBe('#fff');
+    expect(titleRule).toBeDefined();
+    expect(titleRule!.declarations[0].value).toBe('#333');
+  });
+
+  it('resolves & parent reference', () => {
+    const css = `.btn { color: #fff; &:hover { color: #eee; } &-primary { background: blue; } }`;
+    const { rules } = parseCssBlock(css);
+
+    expect(rules.find(r => r.selector === '.btn')).toBeDefined();
+    expect(rules.find(r => r.selector === '.btn:hover')).toBeDefined();
+    expect(rules.find(r => r.selector === '.btn-primary')).toBeDefined();
+  });
+
+  it('resolves multi-level nesting', () => {
+    const css = `section { .card { .title { color: red; } } }`;
+    const { rules } = parseCssBlock(css);
+
+    expect(rules.find(r => r.selector === 'section .card .title')).toBeDefined();
+  });
+
+  it('nested rules do not leak declarations to parent', () => {
+    const css = `.card { background: #fff; .title { color: #333; } }`;
+    const { rules } = parseCssBlock(css);
+
+    const cardRule = rules.find(r => r.selector === '.card');
+    // .card should only have background, NOT the nested .title's color
+    expect(cardRule!.declarations).toHaveLength(1);
+    expect(cardRule!.declarations[0].property).toBe('background');
+  });
 });

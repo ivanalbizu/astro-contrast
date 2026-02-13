@@ -28,50 +28,48 @@ const HEADING_DEFAULTS: Record<string, { fontSize: string; fontWeight: string }>
   h6: { fontSize: '10.72px', fontWeight: '700' },
 };
 
-interface ParsedSelector {
+// ── Selector parsing ────────────────────────────────────────────────
+
+interface SelectorPart {
   tagName: string | null;
   classes: string[];
   id: string | null;
   isUniversal: boolean;
 }
 
-function parseSimpleSelector(selector: string): ParsedSelector | null {
-  const trimmed = selector.trim();
+interface ParsedSelector {
+  target: SelectorPart;
+  ancestors: Array<{ combinator: string; part: SelectorPart }>;
+}
 
-  // Skip pseudo-classes/elements and complex selectors
-  if (trimmed.includes(' ') || trimmed.includes('>') ||
-      trimmed.includes('+') || trimmed.includes('~') ||
-      trimmed.includes(':')) {
-    // Try to extract the last simple part (e.g., ".container .title" -> ".title")
-    const parts = trimmed.split(/[\s>+~]+/);
-    const lastPart = parts[parts.length - 1].replace(/:.*$/, '').trim();
-    if (!lastPart) return null;
-    return parseSimpleSelector(lastPart);
-  }
+function parseSelectorPart(s: string): SelectorPart | null {
+  let trimmed = s.trim();
+  if (!trimmed) return null;
 
   if (trimmed === '*') {
     return { tagName: null, classes: [], id: null, isUniversal: true };
   }
 
+  // Strip pseudo-classes/elements (:hover, ::before, :not(...), etc.)
+  trimmed = trimmed.replace(/::?[\w-]+(\([^)]*\))*/g, '').trim();
+  if (!trimmed) return null;
+
+  // Strip attribute selectors ([data-x], [type="submit"], etc.)
+  trimmed = trimmed.replace(/\[[^\]]*\]/g, '').trim();
+  if (!trimmed) return null;
+
   let tagName: string | null = null;
   const classes: string[] = [];
   let id: string | null = null;
 
-  // Match patterns like "h1.title#main"
-  const parts = trimmed.match(/^([a-zA-Z][a-zA-Z0-9-]*)?([.#][^.#]+)*/);
-  if (!parts) return null;
-
-  // Extract tag name (starts at beginning, before any . or #)
   const tagMatch = trimmed.match(/^([a-zA-Z][a-zA-Z0-9-]*)/);
   if (tagMatch) tagName = tagMatch[1];
 
-  // Extract classes
   const classMatches = trimmed.matchAll(/\.([a-zA-Z_-][a-zA-Z0-9_-]*)/g);
   for (const match of classMatches) {
     classes.push(match[1]);
   }
 
-  // Extract ID
   const idMatch = trimmed.match(/#([a-zA-Z_-][a-zA-Z0-9_-]*)/);
   if (idMatch) id = idMatch[1];
 
@@ -80,30 +78,103 @@ function parseSimpleSelector(selector: string): ParsedSelector | null {
   return { tagName, classes, id, isUniversal: false };
 }
 
-function matchesSelector(element: HtmlElementInfo, selector: ParsedSelector): boolean {
-  if (selector.isUniversal) return true;
+function parseSelector(selector: string): ParsedSelector | null {
+  const trimmed = selector.trim();
+  if (!trimmed) return null;
 
-  if (selector.tagName && element.tagName !== selector.tagName) return false;
-  if (selector.id && element.id !== selector.id) return false;
+  // Tokenize: split into segments and combinators
+  const re = /\s*([>+~])\s*|\s+/g;
+  const segments: string[] = [];
+  const combinators: string[] = [];
+  let lastIndex = 0;
+  let m;
 
-  for (const cls of selector.classes) {
-    if (!element.classes.includes(cls)) return false;
+  while ((m = re.exec(trimmed)) !== null) {
+    const seg = trimmed.slice(lastIndex, m.index).trim();
+    if (seg) {
+      segments.push(seg);
+      combinators.push(m[1] || ' '); // explicit combinator or space (descendant)
+    }
+    lastIndex = re.lastIndex;
+  }
+  const lastSeg = trimmed.slice(lastIndex).trim();
+  if (lastSeg) segments.push(lastSeg);
+
+  if (segments.length === 0) return null;
+
+  const parsedParts: SelectorPart[] = [];
+  for (const seg of segments) {
+    const part = parseSelectorPart(seg);
+    if (!part) return null;
+    parsedParts.push(part);
   }
 
-  // At least one criterion must match
-  if (!selector.tagName && selector.classes.length === 0 && !selector.id) return false;
+  const target = parsedParts[parsedParts.length - 1];
+  const ancestors: Array<{ combinator: string; part: SelectorPart }> = [];
+  for (let i = parsedParts.length - 2; i >= 0; i--) {
+    ancestors.push({ combinator: combinators[i], part: parsedParts[i] });
+  }
+
+  return { target, ancestors };
+}
+
+// ── Selector matching ───────────────────────────────────────────────
+
+function matchesPart(element: HtmlElementInfo, part: SelectorPart): boolean {
+  if (part.isUniversal) return true;
+  if (part.tagName && element.tagName !== part.tagName) return false;
+  if (part.id && element.id !== part.id) return false;
+  for (const cls of part.classes) {
+    if (!element.classes.includes(cls)) return false;
+  }
+  if (!part.tagName && part.classes.length === 0 && !part.id) return false;
+  return true;
+}
+
+function matchesSelector(element: HtmlElementInfo, selector: ParsedSelector): boolean {
+  if (!matchesPart(element, selector.target)) return false;
+
+  let current: HtmlElementInfo | null | undefined = element;
+  for (const { combinator, part } of selector.ancestors) {
+    if (combinator === '>') {
+      // Child combinator: immediate parent must match
+      current = current?.parentElement;
+      if (!current || !matchesPart(current, part)) return false;
+    } else if (combinator === ' ') {
+      // Descendant combinator: any ancestor must match
+      current = current?.parentElement;
+      let found = false;
+      while (current) {
+        if (matchesPart(current, part)) { found = true; break; }
+        current = current.parentElement;
+      }
+      if (!found) return false;
+    } else {
+      // Sibling combinators (+ ~): no sibling info available, skip ancestor check
+      break;
+    }
+  }
 
   return true;
 }
 
-// Higher = more specific
+// ── Specificity ─────────────────────────────────────────────────────
+
+function partSpecificity(part: SelectorPart): number {
+  let s = 0;
+  if (part.isUniversal) return 0;
+  if (part.id) s += 100;
+  s += part.classes.length * 10;
+  if (part.tagName) s += 1;
+  return s;
+}
+
 function selectorSpecificity(selector: ParsedSelector): number {
-  let specificity = 0;
-  if (selector.isUniversal) return 0;
-  if (selector.id) specificity += 100;
-  specificity += selector.classes.length * 10;
-  if (selector.tagName) specificity += 1;
-  return specificity;
+  let s = partSpecificity(selector.target);
+  for (const { part } of selector.ancestors) {
+    s += partSpecificity(part);
+  }
+  return s;
 }
 
 interface MatchedDeclaration {
@@ -121,7 +192,7 @@ function findBestDeclaration(
 
   for (const rule of rules) {
     if (rule.ignored) continue;
-    const parsed = parseSimpleSelector(rule.selector);
+    const parsed = parseSelector(rule.selector);
     if (!parsed || !matchesSelector(element, parsed)) continue;
 
     const spec = selectorSpecificity(parsed);
@@ -300,6 +371,24 @@ export function buildColorPairs(
           source: 'stylesheet',
           selector: '(default)',
         };
+    }
+
+    // Composite semi-transparent backgrounds onto the surface behind them
+    if (bgColor.rgb && bgColor.rgb.a !== undefined && bgColor.rgb.a < 1) {
+      const behind = findAncestorBackground(element, rules)
+        ?? findRootBackground(rules)
+        ?? { rgb: { r: 255, g: 255, b: 255 } };
+      if (behind.rgb) {
+        const a = bgColor.rgb.a;
+        bgColor = {
+          ...bgColor,
+          rgb: {
+            r: Math.round(bgColor.rgb.r * a + behind.rgb.r * (1 - a)),
+            g: Math.round(bgColor.rgb.g * a + behind.rgb.g * (1 - a)),
+            b: Math.round(bgColor.rgb.b * a + behind.rgb.b * (1 - a)),
+          },
+        };
+      }
     }
 
     // Resolve font-size: inline > Tailwind > CSS rules > heading defaults

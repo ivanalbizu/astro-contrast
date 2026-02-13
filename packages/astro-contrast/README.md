@@ -7,6 +7,7 @@ WCAG color contrast analyzer for Astro components. Checks your `.astro` files fo
 - Parses `.astro` files and extracts color pairs (text color + background)
 - Calculates WCAG 2.1 contrast ratios
 - Supports hex, rgb, hsl, oklch, oklab, lab, lch, and named CSS colors (including alpha channels)
+- **`color-mix()` support** — resolves `color-mix()` across 7 color spaces
 - **Large text detection** — applies lower WCAG thresholds for headings, large fonts, and bold text
 - **Tailwind CSS support** — resolves `text-*` and `bg-*` utility classes
 - Resolves CSS custom properties (`var(--color)`) from `:root`
@@ -277,6 +278,32 @@ astro-contrast detects Tailwind utility classes and resolves them to colors usin
 
 **Not yet supported**: responsive variants (`md:text-white`), state variants (`hover:bg-blue-500`), opacity modifiers (`text-blue-500/50`), custom Tailwind config.
 
+## `color-mix()`
+
+astro-contrast resolves CSS `color-mix()` functions and calculates the resulting color for contrast analysis. Works with `var()` references inside `color-mix()`.
+
+```css
+:root {
+  --color-base: #ffffff;
+  --color-main: #000000;
+  --surface: color-mix(in srgb, var(--color-base) 98%, var(--color-main));
+}
+```
+
+**Supported color spaces:**
+
+| Color space | Interpolation method |
+|---|---|
+| `srgb` | Linear interpolation in gamma-encoded sRGB |
+| `srgb-linear` | Linear interpolation in linear-light sRGB |
+| `oklab` | Linear interpolation in OKLab (perceptually uniform) |
+| `oklch` | Polar interpolation with shortest hue path |
+| `lab` | Linear interpolation in CIE Lab |
+| `lch` | Polar interpolation with shortest hue path |
+| `hsl` | Polar interpolation with shortest hue path |
+
+Percentage arguments follow the CSS spec: both explicit (`color-mix(in srgb, red 30%, blue 70%)`), single (`color-mix(in srgb, red 25%, blue)` — blue gets 75%), and omitted (`color-mix(in srgb, red, blue)` — 50/50).
+
 ## Ignoring Elements
 
 You can skip specific elements or CSS rules from contrast analysis using ignore comments.
@@ -376,8 +403,8 @@ When using `--level aaa`, pairs that pass AA but fail AAA appear as warnings ins
 
 1. **Parse** — Reads `.astro` files using `@astrojs/compiler` and extracts HTML elements, `<style>` blocks, `<link>` hrefs, and `@import` references
 2. **Extract CSS** — Parses style blocks with PostCSS to get selectors, color declarations, and `:root` custom properties. Auto-loads CSS from `<link>` and `@import` recursively
-3. **Resolve** — Resolves `var()` references using custom properties from `:root`, auto-detected CSS, external CSS files, and/or design tokens
-4. **Match** — Matches HTML elements to CSS rules by selector (type, class, ID, compound) and resolves Tailwind utility classes
+3. **Resolve** — Resolves `var()` references using custom properties from `:root`, auto-detected CSS, external CSS files, and/or design tokens. Evaluates `color-mix()` functions
+4. **Match** — Matches HTML elements to CSS rules by selector (type, class, ID, compound, descendant, child combinator) and resolves Tailwind utility classes
 5. **Evaluate** — Calculates WCAG 2.1 contrast ratio for each foreground/background pair
 6. **Report** — Outputs results with pass/fail status for AA and AAA levels
 
@@ -421,14 +448,50 @@ Summary:
 | `npm run typecheck` | TypeScript check (`tsc --noEmit`) |
 | `npm run prepublishOnly` | Runs typecheck + test + build (auto on `npm publish`) |
 
+## Alpha Compositing
+
+When a color has an alpha channel (transparency), the visible color depends on what's behind it. astro-contrast composites both foreground and background colors using the standard alpha compositing formula:
+
+```
+composited = color × alpha + behind × (1 - alpha)
+```
+
+**Foreground alpha** — the text color is composited onto the background:
+
+```astro
+<p style="color: rgba(0, 0, 0, 0.5); background-color: #ffffff">Semi-transparent text</p>
+<!-- Visible text color: rgb(128, 128, 128) → contrast ~3.95:1 instead of 21:1 -->
+```
+
+**Background alpha** — the background is composited onto the surface behind it (ancestor background → root background → white):
+
+```astro
+<p style="color: #000; background-color: rgba(255, 0, 0, 0.5)">Text on semi-transparent red</p>
+<!-- Background composited on white: rgb(255, 128, 128) — light pink -->
+```
+
+**What's supported:**
+
+| Case | Example |
+|---|---|
+| Foreground `rgba()`/`hsla()`/hex8 on opaque background | `rgba(0,0,0,0.5)` on `#fff` |
+| Background `rgba()`/`hsla()`/hex8 composited on ancestor/root/white | `bg: rgba(255,0,0,0.5)` on implicit white |
+
+**Not yet supported:**
+
+| Case | Why |
+|---|---|
+| CSS `opacity` property | Applies to the entire element, not just the color — requires layout tree traversal |
+| Nested opacity | Parent `opacity: 0.5` affects child elements — requires CSS inheritance chain |
+
 ## Current Limitations
 
 - **Background inheritance (same file)** — Child elements inherit `background-color` from ancestor elements within the same `.astro` file (inline styles, Tailwind classes, and CSS rules). Cross-file inheritance (e.g. layout → page) requires `--css`
-- **No pseudo-classes** — `:hover`, `:focus`, `:active` states are not analyzed. Only base-state selectors are matched (planned for a future release)
-- **Simple selectors only** — Supports type, class, ID, and compound selectors. No combinators or media queries
+- **Pseudo-class colors included** — CSS rules with `:hover`, `:focus`, `:active` are analyzed against the base element (the pseudo-class is stripped). This means hover/focus colors are checked for contrast, but are not distinguished from base-state colors in the output
+- **No media queries** — Selectors inside `@media` are not scope-aware. Attribute selectors (`[data-x]`) are stripped during matching
+- **No sibling combinators** — Adjacent sibling (`+`) and general sibling (`~`) selectors are matched by the target part only (the context is ignored)
 - **No dynamic font sizes** — `clamp()`, `min()`, `max()`, `calc()`, and viewport units (`vw`, `vh`) cannot be resolved; text is treated as normal size (stricter threshold)
-- **No SCSS/SASS/Less** — Only plain CSS in `<style>` blocks is supported. Preprocessor syntax (`$variables`, nesting, `@mixin`) is not parsed. Colors defined via preprocessors can still be analyzed if compiled to CSS custom properties and loaded with `--css`
-- **Partial alpha compositing** — Foreground colors with alpha (`rgba`, `hsla`, hex8) are composited onto the background. Background alpha, CSS `opacity`, and nested opacity require CSS inheritance and are not supported
+- **SCSS/SASS nesting supported** — `<style lang="scss">` blocks are parsed: nested selectors (`.card { .title { } }` → `.card .title`), `&` parent references (`.btn { &:hover { } }` → `.btn:hover`), and plain CSS declarations are all extracted. SCSS-only features (`$variables`, `@mixin`, `@include`, `@extend`) are ignored — those values won't be resolved. If you need preprocessor variables, compile them to CSS custom properties and use `--css` or `--tokens`
 - **No dark mode / theme scopes** — Only `:root` and `html` custom properties are extracted. Variables under `[data-theme="dark"]`, `.dark`, or `@media (prefers-color-scheme: dark)` are not resolved. Workaround: use separate CSS files per theme and run with `--css themes/light.css` or `--css themes/dark.css`
 
 ## License

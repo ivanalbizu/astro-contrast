@@ -145,8 +145,66 @@ function clampByte(v: number): number {
   return Math.round(Math.min(255, Math.max(0, v)));
 }
 
+function srgbToLinear(c: number): number {
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
 function linearToSrgb(c: number): number {
   return c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+}
+
+// ── RGB → color space conversions (for color-mix interpolation) ────
+
+function rgbToOklab(rgb: RgbColor): [number, number, number] {
+  const r = srgbToLinear(rgb.r / 255);
+  const g = srgbToLinear(rgb.g / 255);
+  const b = srgbToLinear(rgb.b / 255);
+
+  const l_ = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m_ = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s_ = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+
+  return [
+    0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+    1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+    0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+  ];
+}
+
+function rgbToLab(rgb: RgbColor): [number, number, number] {
+  const r = srgbToLinear(rgb.r / 255);
+  const g = srgbToLinear(rgb.g / 255);
+  const b = srgbToLinear(rgb.b / 255);
+
+  // sRGB → XYZ D65
+  let x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / XN;
+  let y = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b;
+  let z = (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / ZN;
+
+  const f = (t: number) => t > LAB_E ? Math.cbrt(t) : (LAB_K * t + 16) / 116;
+  x = f(x); y = f(y); z = f(z);
+
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+
+function rgbToHsl(rgb: RgbColor): [number, number, number] {
+  const r = rgb.r / 255;
+  const g = rgb.g / 255;
+  const b = rgb.b / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+
+  if (max === min) return [0, 0, l];
+
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = 0;
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (max === g) h = ((b - r) / d + 2) / 6;
+  else h = ((r - g) / d + 4) / 6;
+
+  return [h * 360, s * 100, l * 100];
 }
 
 function parseAngle(s: string): number {
@@ -293,6 +351,149 @@ function parseCieLch(value: string): RgbColor | null {
   return result;
 }
 
+// ── color-mix() ────────────────────────────────────────────────────
+
+/** Split by top-level commas (not inside parentheses) */
+function splitTopLevel(str: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < str.length; i++) {
+    if (str[i] === '(') depth++;
+    else if (str[i] === ')') depth--;
+    else if (str[i] === ',' && depth === 0) {
+      parts.push(str.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  parts.push(str.slice(start).trim());
+  return parts;
+}
+
+function parseColorMixArg(arg: string): { color: RgbColor; pct: number | null } | null {
+  // "red 30%" or "#fff" or "rgb(0,0,0) 50%"
+  const pctMatch = arg.match(/\s+([\d.]+)%\s*$/);
+  if (pctMatch) {
+    const colorStr = arg.slice(0, pctMatch.index).trim();
+    const color = parseColor(colorStr);
+    if (!color) return null;
+    return { color, pct: parseFloat(pctMatch[1]) };
+  }
+  const color = parseColor(arg.trim());
+  if (!color) return null;
+  return { color, pct: null };
+}
+
+/** Interpolate angles in radians via shortest arc */
+function lerpAngleRad(a: number, b: number, t: number): number {
+  let diff = b - a;
+  if (diff > Math.PI) diff -= 2 * Math.PI;
+  else if (diff < -Math.PI) diff += 2 * Math.PI;
+  return a + diff * t;
+}
+
+/** Interpolate angles in degrees via shortest arc */
+function lerpAngleDeg(a: number, b: number, t: number): number {
+  let diff = b - a;
+  if (diff > 180) diff -= 360;
+  else if (diff < -180) diff += 360;
+  return a + diff * t;
+}
+
+function parseColorMix(value: string): RgbColor | null {
+  // Extract content inside color-mix(...)
+  const innerMatch = value.match(/^color-mix\(\s*(.+)\s*\)$/);
+  if (!innerMatch) return null;
+
+  const parts = splitTopLevel(innerMatch[1]);
+  if (parts.length !== 3) return null;
+
+  // First part: "in srgb"
+  const spaceMatch = parts[0].match(/^in\s+(\S+)$/);
+  if (!spaceMatch) return null;
+
+  const colorSpace = spaceMatch[1];
+  const arg1 = parseColorMixArg(parts[1]);
+  const arg2 = parseColorMixArg(parts[2]);
+  if (!arg1 || !arg2) return null;
+
+  // Resolve percentages (CSS spec: if both omitted → 50/50, if one → other = 100 - p)
+  let p1: number;
+  let p2: number;
+  if (arg1.pct === null && arg2.pct === null) { p1 = 50; p2 = 50; }
+  else if (arg1.pct !== null && arg2.pct === null) { p1 = arg1.pct; p2 = 100 - p1; }
+  else if (arg1.pct === null && arg2.pct !== null) { p2 = arg2.pct; p1 = 100 - p2; }
+  else { p1 = arg1.pct!; p2 = arg2.pct!; }
+
+  // Normalize so they sum to 100
+  const sum = p1 + p2;
+  if (sum <= 0) return null;
+  const w1 = p1 / sum;
+  const w2 = p2 / sum;
+
+  const c1 = arg1.color;
+  const c2 = arg2.color;
+
+  switch (colorSpace) {
+    case 'srgb': {
+      return {
+        r: Math.round(c1.r * w1 + c2.r * w2),
+        g: Math.round(c1.g * w1 + c2.g * w2),
+        b: Math.round(c1.b * w1 + c2.b * w2),
+      };
+    }
+    case 'srgb-linear': {
+      const r1 = srgbToLinear(c1.r / 255), g1 = srgbToLinear(c1.g / 255), b1 = srgbToLinear(c1.b / 255);
+      const r2 = srgbToLinear(c2.r / 255), g2 = srgbToLinear(c2.g / 255), b2 = srgbToLinear(c2.b / 255);
+      return {
+        r: clampByte(linearToSrgb(r1 * w1 + r2 * w2) * 255),
+        g: clampByte(linearToSrgb(g1 * w1 + g2 * w2) * 255),
+        b: clampByte(linearToSrgb(b1 * w1 + b2 * w2) * 255),
+      };
+    }
+    case 'oklab': {
+      const [L1, a1, b1o] = rgbToOklab(c1);
+      const [L2, a2, b2o] = rgbToOklab(c2);
+      return oklabToRgb(L1 * w1 + L2 * w2, a1 * w1 + a2 * w2, b1o * w1 + b2o * w2);
+    }
+    case 'oklch': {
+      const [L1, a1, b1o] = rgbToOklab(c1);
+      const [L2, a2, b2o] = rgbToOklab(c2);
+      const C1 = Math.sqrt(a1 * a1 + b1o * b1o), H1 = Math.atan2(b1o, a1);
+      const C2 = Math.sqrt(a2 * a2 + b2o * b2o), H2 = Math.atan2(b2o, a2);
+      const L = L1 * w1 + L2 * w2;
+      const C = C1 * w1 + C2 * w2;
+      const H = lerpAngleRad(H1, H2, w2);
+      return oklabToRgb(L, C * Math.cos(H), C * Math.sin(H));
+    }
+    case 'lab': {
+      const [L1, a1, b1l] = rgbToLab(c1);
+      const [L2, a2, b2l] = rgbToLab(c2);
+      return labToRgb(L1 * w1 + L2 * w2, a1 * w1 + a2 * w2, b1l * w1 + b2l * w2);
+    }
+    case 'lch': {
+      const [L1, a1, b1l] = rgbToLab(c1);
+      const [L2, a2, b2l] = rgbToLab(c2);
+      const C1 = Math.sqrt(a1 * a1 + b1l * b1l), H1 = Math.atan2(b1l, a1);
+      const C2 = Math.sqrt(a2 * a2 + b2l * b2l), H2 = Math.atan2(b2l, a2);
+      const L = L1 * w1 + L2 * w2;
+      const C = C1 * w1 + C2 * w2;
+      const H = lerpAngleRad(H1, H2, w2);
+      return labToRgb(L, C * Math.cos(H), C * Math.sin(H));
+    }
+    case 'hsl': {
+      const [h1, s1, l1] = rgbToHsl(c1);
+      const [h2, s2, l2] = rgbToHsl(c2);
+      const h = ((lerpAngleDeg(h1, h2, w2) % 360) + 360) % 360;
+      const s = s1 * w1 + s2 * w2;
+      const l = l1 * w1 + l2 * w2;
+      return parseColor(`hsl(${h}, ${s}%, ${l}%)`);
+    }
+    default:
+      return null;
+  }
+}
+
 // ── Main entry point ────────────────────────────────────────────────
 
 export function parseColor(value: string): RgbColor | null {
@@ -334,6 +535,11 @@ export function parseColor(value: string): RgbColor | null {
   }
   if (trimmed.startsWith('lab')) {
     return parseCieLab(trimmed);
+  }
+
+  // color-mix()
+  if (trimmed.startsWith('color-mix(')) {
+    return parseColorMix(trimmed);
   }
 
   return null;

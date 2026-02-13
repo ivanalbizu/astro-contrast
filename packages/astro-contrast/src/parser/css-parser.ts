@@ -35,6 +35,23 @@ function parseImportUrl(params: string): string | null {
   return url || null;
 }
 
+function resolveNestedSelector(rule: postcss.Rule): string {
+  let selector = rule.selector;
+  let parent = rule.parent;
+
+  while (parent && parent.type === 'rule') {
+    const parentSelector = (parent as postcss.Rule).selector;
+    if (selector.includes('&')) {
+      selector = selector.replace(/&/g, parentSelector);
+    } else {
+      selector = `${parentSelector} ${selector}`;
+    }
+    parent = parent.parent;
+  }
+
+  return selector;
+}
+
 export function parseCssBlock(cssContent: string): CssParseResult {
   const rules: CssRuleInfo[] = [];
   const customProperties = new Map<string, string>();
@@ -58,18 +75,23 @@ export function parseCssBlock(cssContent: string): CssParseResult {
   });
 
   root.walkRules((rule) => {
+    // Resolve nested selectors (SCSS nesting: .card { .title { } } → .card .title)
+    const fullSelector = resolveNestedSelector(rule);
+
     // Extract custom properties from :root or html
-    if (rule.selector === ':root' || rule.selector === 'html') {
-      rule.walkDecls((decl) => {
-        if (decl.prop.startsWith('--')) {
-          customProperties.set(decl.prop, decl.value);
+    if (fullSelector === ':root' || fullSelector === 'html') {
+      rule.each((child) => {
+        if (child.type === 'decl' && child.prop.startsWith('--')) {
+          customProperties.set(child.prop, child.value);
         }
       });
     }
 
-    // Extract color and typography declarations
+    // Extract color and typography declarations (direct children only, not nested rules)
     const declarations: CssDeclarationInfo[] = [];
-    rule.walkDecls((decl) => {
+    rule.each((child) => {
+      if (child.type !== 'decl') return;
+      const decl = child as postcss.Declaration;
       if (COLOR_PROPERTIES.has(decl.prop)) {
         // For background shorthand, skip non-color values
         if (decl.prop === 'background') {
@@ -95,7 +117,7 @@ export function parseCssBlock(cssContent: string): CssParseResult {
     if (declarations.length > 0) {
       const ignored = hasPrecedingIgnoreComment(rule);
       // Split compound selectors (e.g., ".btn, .link" -> [".btn", ".link"])
-      const selectors = rule.selector.split(',').map(s => s.trim());
+      const selectors = fullSelector.split(',').map((s: string) => s.trim());
       for (const selector of selectors) {
         rules.push({ selector, declarations: [...declarations], ignored });
       }
